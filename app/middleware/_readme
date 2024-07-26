@@ -1,0 +1,22 @@
+Middleware for Firebase Authentication in Vercel Serverless Functions
+Overview
+This project utilizes Vercel serverless functions to create APIs. Due to the edge runtime environment provided by Vercel, the traditional firebase-admin SDK cannot be used because it relies on Node.js features not available in the edge runtime. To handle Firebase authentication, we have implemented a design pattern using middleware functions that act as a non-Vercel middleware layer. This document explains how to use authMiddleware and withMiddleware to extend Vercel's serverless function capabilities.
+
+Middleware Implementation
+authMiddleware
+The authMiddleware function is responsible for validating the Firebase token provided in the request headers. The function checks for the presence of the authorization header, extracts the token, and validates it using a custom Firebase token validation function. If the token is valid, the decoded token is attached to the request object. If the token is missing or invalid, a 401 response is returned.
+
+withMiddleware
+The withMiddleware function wraps around the main request handler, applying the specified middleware before executing the handler. If the middleware returns a response (indicating an error or some condition), the main handler will not be executed. Otherwise, the main handler proceeds as normal.
+
+Example GET Request Handler
+An example of how to create a GET request handler using the withMiddleware and authMiddleware functions. This setup demonstrates how to apply the authentication middleware to a request handler, ensuring that the authentication logic runs before the handler logic.
+
+How It Works
+Edge Runtime Limitations: Vercel's serverless functions use an edge runtime environment, which does not support the Node.js-based firebase-admin SDK. This is because the edge runtime is optimized for lightweight, fast execution, lacking support for Node.js-specific modules and features.
+
+Custom Middleware Functions: To work around this limitation, we implemented a custom middleware pattern. The authMiddleware function validates the Firebase token and attaches the decoded token to the request object if valid. If the token is missing or invalid, it returns a 401 response.
+
+Middleware Application: The withMiddleware function takes the main handler and middleware as arguments. It first executes the middleware, and if the middleware returns a response (indicating an error or some condition), it stops and returns that response. Otherwise, it proceeds to execute the main handler.
+
+By structuring the middleware in this way, we ensure that our authentication logic runs before any request handler, effectively mimicking the behavior of traditional middleware in a Node.js environment.
