@@ -3,43 +3,9 @@ import { PutItemCommand, QueryCommand } from "@aws-sdk/client-dynamodb";
 import { withMiddleware } from "@/app/middleware/withMiddleware";
 import { authMiddleware } from "@/app/middleware/authMiddleware";
 import { GetItem } from "@/app/lib/dynamodb/GetItem";
+import { PutItem } from "@/app/lib/dynamodb/PutItem";
 import _ from "lodash";
 import { differenceInSeconds, parse } from "date-fns";
-
-// -----------------------------------------------------------------------------------------------------------
-// The GET request is a simple check to see if the user has already submitted the puzzle
-async function handlerGET(req, context) {
-  // We use the context object to access params and any data added by middleware
-  // This is necessary because middleware like authMiddleware may add user information to the context
-  // Safely access params, falling back to an empty object if undefined
-  const { params = {} } = context || {};
-
-  // Extract UID and PID from params
-  const { UID, PID } = params;
-
-  // get item from table
-  const data = await GetItem("sbm-user-result", "UID", UID, "PID", PID);
-
-  if (data) {
-    const response = {
-      isSubmitted: true,
-    };
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } else {
-    const response = {
-      isSubmitted: false,
-    };
-    return new Response(JSON.stringify(response), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  }
-}
-
-export const GET = withMiddleware(handlerGET, authMiddleware);
 
 // -----------------------------------------------------------------------------------------------------------
 // The POST request accepts the result of a puzzle in raw html format
@@ -60,64 +26,56 @@ async function handlerPOST(req, context) {
   const { UID, PID } = params;
 
   // Deconstruct Body
-  const { pageHTML } = await req.json();
+  const { HTMLStringResult, HTMLStringDescription } = await req.json();
 
   // STEP 1: Process HTML String
   // -----------------------------------------------------------------------------------------------------------
   // Process HTMLStringResult and determine number of hints used and encoded result
-  const processHTMLStringResult = (pageHTML) => {
-    // here is the regexp it will return --hint-blue, --yellow or undefined (for lightbulb)
-    // First, reduce the pageHTML to the relevant section
-    const reducedHTMLRegex = /Strands #\d{3,}<br>.+NEXT/s;
-    const reducedHTMLMatch = pageHTML.match(reducedHTMLRegex);
+  const processHTMLStringResult = (HTMLString) => {
+    // Regular expression to match the circle elements in the HTML string
+    // The regular expression has the following parts:
+    // 1. <div class="(?:_5Nj5-q_)?circle": This part matches the div element with the class "circle" or "_5Nj5-q_circle".
+    //    The (?:) syntax is a non-capturing group, which means the matched text is not stored in a capturing group.
+    // 2. (?:\s+style="([^"]*)")?": This part matches the optional "style" attribute of the div element.
+    //    The (?:\s+style="([^"]*)")?" part uses a non-capturing group to match the style attribute.
+    //    The ([^"]*) part captures the value of the style attribute in the first capturing group.
+    // 3. \s*<\/div>: This part matches the closing div tag, allowing for optional whitespace.
+    // 4. /g: The global flag ensures that the regular expression matches all occurrences of the pattern in the HTML string.
+    const circleRegex =
+      /<div class="(?:_5Nj5-q_)?circle"(?:\s+style="([^"]*)")?>\s*<\/div>/g;
 
-    if (!reducedHTMLMatch) {
-      console.log("Couldn't find the relevant section in the HTML");
-      return [];
-    }
+    const colorSequence = [];
 
-    const reducedHTML = reducedHTMLMatch[0];
+    // Use a while loop to iterate through all the matches in the HTML string
+    let match;
+    while ((match = circleRegex.exec(HTMLString)) !== null) {
+      // The first capturing group (match[1]) contains the value of the "style" attribute, if present
+      const style = match[1];
 
-    // Now proceed with the original extraction on the reduced HTML
-    const regexpResults = /background-color: var\((--[^)]+)\)|💡/g;
-    const resultsExtractedHTML = [...reducedHTML.matchAll(regexpResults)];
-
-    let resultsExtractedValues = resultsExtractedHTML.map((match) =>
-      match[0] === "💡" ? undefined : match[1]
-    );
-
-    // Remove the last element if it's undefined - as it is a carry over hint in the message
-    if (
-      resultsExtractedValues.length > 0 &&
-      resultsExtractedValues[resultsExtractedValues.length - 1] === undefined
-    ) {
-      resultsExtractedValues.pop();
-    }
-
-    // Encode the results
-    const resultsEncoded = resultsExtractedValues.map((value) => {
-      if (value === undefined) {
-        return "L"; // Lightbulb
-      } else if (value === "--yellow") {
-        return "Y"; // Yellow
-      } else if (value === "--hint-blue") {
-        return "B"; // Blue
+      // Determine the color of the circle based on the style attribute
+      if (!style) {
+        // If the style attribute is not present, it's a hint/light bulb
+        colorSequence.push("L");
+      } else if (style.includes("--yellow")) {
+        colorSequence.push("Y");
+      } else if (style.includes("--hint-blue")) {
+        colorSequence.push("B");
       } else {
-        return ""; // Unknown value
+        // If the style doesn't match the expected patterns, push an empty string
+        colorSequence.push("");
       }
-    });
+    }
 
     // Join the color sequence array into a single string, which represents the encoded result
-    const EncodedResult = resultsEncoded.join("");
+    const EncodedResult = colorSequence.join("");
 
     // Calculate the number of hints used by counting the number of "L" (light bulb) elements in the color sequence
-    const HintsUsed = resultsEncoded.filter((color) => color === "L").length;
+    const HintsUsed = colorSequence.filter((color) => color === "L").length;
 
     // Return an object containing the number of hints used and the encoded result
     return { HintsUsed, EncodedResult };
   };
-
-  const { HintsUsed, EncodedResult } = processHTMLStringResult(pageHTML);
+  const { HintsUsed, EncodedResult } = processHTMLStringResult(HTMLStringResult);
 
   // STEP 2: Meta Data of Puzzle
   // -----------------------------------------------------------------------------------------------------------
@@ -126,14 +84,10 @@ async function handlerPOST(req, context) {
   // reads are cheap in dynamodb.
 
   // get the description from the html string function
-  const processHTMLStringDescription = (pageHTML) => {
-    const regexpDescription = /<h2.+Strands #\d{3,}<br>(.+?)</;
-    const extractedText = pageHTML.match(regexpDescription);
-    // removes the quotes from the start and end of the string
-    const extractedTextClean = extractedText[1]
-      .replace(/^[\u201C\u201D\u2018\u2019"']|[\u201C\u201D\u2018\u2019"']$/g, "")
-      .trim();
-    return extractedTextClean;
+  const processHTMLStringDescription = (HTMLString) => {
+    // Regular expression to match the circle elements in the HTML string
+    // Nothing to process already returns as is
+    return HTMLString;
   };
 
   // read to see if the puzzle title and description exist in the puzzle table
@@ -148,7 +102,7 @@ async function handlerPOST(req, context) {
     try {
       // get title and description - this takes PID of S00161, extracts the number and formats it as a string
       const PIDTitle = `Strands #${parseInt(PID.match(/S0*(\d+)/)[1])}`;
-      const PIDDescription = processHTMLStringDescription(pageHTML);
+      const PIDDescription = processHTMLStringDescription(HTMLStringDescription);
 
       const ItemParams = {
         TableName: "sbm-reference",
@@ -263,8 +217,8 @@ async function handlerPOST(req, context) {
         UID: { S: UID },
         PID: { S: PID },
         EncodedResult: { S: EncodedResult },
-        HintsUsed: { S: HintsUsed.toString() },
-        TimeTakenInSeconds: { S: TimeTakenInSeconds.toString() },
+        HintsUsed: { S: HintsUsed },
+        TimeTakenInSeconds: { S: TimeTakenInSeconds },
       },
     };
 
@@ -281,3 +235,13 @@ async function handlerPOST(req, context) {
 // This allows authMiddleware to perform authentication and add user info to the context
 // The modified context is then passed to handlerPOST
 export const POST = withMiddleware(handlerPOST, authMiddleware);
+
+//------------------------------------------------------------------------------------------------------------
+// sample html
+// LOG  Extracted text: {"type":"contentAndHtml","content":"Back to puzzle\nPerfect!\nStrands #169\n“Hear me roar!”\nNice job finding the theme words 🔵
+// and Spangram 🟡. You used 0 hints 💡.\nNEXT PUZZLE IN\n14:31:45\nShare Your Results\nPlay Today’s Spelling Bee\n",
+// "circleWrapperHtml":"<div class=\"_5Nj5-q_circleWrapper\"><div class=\"_5Nj5-q_circle\" style=\"background-color: var(--yellow);\"></div><div class=\"_5Nj5-q_circle\"
+// style=\"background-color: var(--hint-blue);\"></div><div class=\"_5Nj5-q_circle\" style=\"background-color: var(--hint-blue);\"></div><div class=\"_5Nj5-q_circle\"
+// style=\"background-color: var(--hint-blue);\"></div><div class=\"_5Nj5-q_circle\" style=\"background-color: var(--hint-blue);\"></div><div class=\"_5Nj5-q_circle\"
+// style=\"background-color: var(--hint-blue);\"></div><div class=\"_5Nj5-q_circle\" style=\"background-color: var(--hint-blue);\"></div><div class=\"_5Nj5-q_circle\"
+// style=\"background-color: var(--hint-blue);\"></div></div>"}

@@ -3,8 +3,8 @@ import { QueryCommand, BatchGetItemCommand } from "@aws-sdk/client-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import { withMiddleware } from "@/app/middleware/withMiddleware";
 import { authMiddleware } from "@/app/middleware/authMiddleware";
-import { GetItem } from "@/app/lib/dynamodb/GetItem";
-import _, { result } from "lodash";
+import _ from "lodash";
+import getPIDMonthStartEnd from "@/app/lib/utils/getPIDMonthStartEnd";
 
 // -----------------------------------------------------------------------------------------------------------
 // app/results/[userid]/[pid]/leaderboard/monthly/route.js
@@ -69,7 +69,7 @@ async function handlerGET(req, context) {
   const { params = {} } = context || {};
 
   // Extract UID from params
-  const { UID, PID, DateYearMonth } = params;
+  const { UID, DateYearMonth } = params;
 
   // Variables to hold the results
   // this keeps the total uid that are required for the leaderboard including the user
@@ -129,10 +129,9 @@ async function handlerGET(req, context) {
 
     // Step 3: Query the `sbm-user-result` table using BatchGetItem to get name and location for each friend
     // -----------------------------------------------------------------------------------------------------------
-    // TODO - get the start and end of puzzle using the date
-    // const { PIDStart, PIDEnd } = getPIDInterval(DateYearMonth);
-    const PIDStart = 160;
-    const PIDEnd = 180;
+    // get the start and end of puzzle using the date
+    // only need to return integer, strand id constructed inside of function
+    const { PIDStart, PIDEnd } = getPIDMonthStartEnd(DateYearMonth);
 
     const dataUserResultsForMonth = await getMonthlyResults(UIDArray, PIDStart, PIDEnd);
 
@@ -207,7 +206,6 @@ async function handlerGET(req, context) {
       "Value",
       "desc"
     );
-    ``;
 
     // Step 6: Response
     // -----------------------------------------------------------------------------------------------------------
