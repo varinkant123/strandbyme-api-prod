@@ -155,14 +155,14 @@ async function handlerGET(req, context) {
         TimeTaken: userResultDetail ? userResultDetail.TimeTakenInSeconds : "",
         EncodedResult: userResultDetail ? userResultDetail.EncodedResult : "",
         HintsUsed: userResultDetail ? userResultDetail.HintsUsed : "",
+        SortCompletedFlag: userResultDetail ? 0 : 1,
       };
     })
-    .sortBy(["HintsUsed", "TimeTaken", "UserFirstName"])
+    .sortBy(["SortCompletedFlag", "HintsUsed", "TimeTaken", "UserFirstName"])
     .value();
 
   // Step 6: Assign positions with tie handling
   // -----------------------------------------------------------------------------------------------------------
-
   let currentPosition = 1;
   let tieCount = 0;
 
