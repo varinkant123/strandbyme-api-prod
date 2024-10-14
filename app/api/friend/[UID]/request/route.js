@@ -152,7 +152,8 @@ async function handlerPUT(req, context) {
   const { UID } = params;
 
   // Deconstruct Body
-  const { UIDF } = await req.json();
+  const url = new URL(req.url);
+  const UIDF = url.searchParams.get("UIDF");
 
   // Construct Params for Both Writes
   const Params = {

@@ -76,6 +76,7 @@ async function handlerGET(req, context) {
       const UIDFriends = dataUserFriendsUnmarshalled
         .filter((item) => item.Status === "Confirmed")
         .map((item) => item.UIDF);
+
       FriendRequestsFlag = dataUserFriendsUnmarshalled
         .filter((item) => item.Status === "Pending")
         .map((item) => item.UIDF);
@@ -88,12 +89,12 @@ async function handlerGET(req, context) {
 
   // Step 2: Query the `sbm-user` table to get all friends requests
   // -----------------------------------------------------------------------------------------------------------
+  let FriendRequestsFlagBoolean = false;
+
   try {
-    if (FriendRequestsFlag && FriendRequestsFlag.length > 0) {
-      FriendRequestsFlag = true;
-    }
+    FriendRequestsFlagBoolean = FriendRequestsFlag.length > 0;
   } catch (error) {
-    console.error("Error in Step 2: Query friend requests", error);
+    console.error("Error in Step 2: Setting FriendRequestsFlagBoolean", error);
   }
 
   // Step 3: Query the `sbm-user` table for user details
@@ -202,7 +203,7 @@ async function handlerGET(req, context) {
     Title: PIDDetails?.Title ?? null,
     Description: PIDDetails?.Description ?? null,
     Leaderboard: mergedUsersWithPositions,
-    FriendRequestsFlag: FriendRequestsFlag,
+    FriendRequestsFlag: FriendRequestsFlagBoolean,
   };
 
   return new Response(JSON.stringify(response), {
