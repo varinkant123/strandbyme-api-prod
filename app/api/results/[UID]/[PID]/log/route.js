@@ -30,7 +30,6 @@ async function handlerPOST(req, context) {
 
   // Logging
   try {
-    const body = await req.json();
     console.log("POST /results/log/start");
     console.log("Body:", DateTimeStartOnDevice);
     console.log("UID:", UID, "PID:", PID);
