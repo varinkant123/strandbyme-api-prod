@@ -28,16 +28,6 @@ async function handlerPOST(req, context) {
   // Deconstruct Body
   const { DateTimeStartOnDevice } = await req.json();
 
-  // Logging
-  try {
-    console.log("POST /results/log/start");
-    console.log("Body:", DateTimeStartOnDevice);
-    console.log("UID:", UID, "PID:", PID);
-    console.log("Headers:", req.headers);
-  } catch (error) {
-    console.error("Error logging POST /results/log/start", error);
-  }
-
   try {
     const ItemParams = {
       TableName: "sbm-user-result-log",
