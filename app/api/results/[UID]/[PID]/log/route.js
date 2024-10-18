@@ -32,7 +32,7 @@ async function handlerPOST(req, context) {
   try {
     const body = await req.json();
     console.log("POST /results/log/start");
-    console.log("Body:", body);
+    console.log("Body:", DateTimeStartOnDevice);
     console.log("UID:", UID, "PID:", PID);
     console.log("Headers:", req.headers);
   } catch (error) {
