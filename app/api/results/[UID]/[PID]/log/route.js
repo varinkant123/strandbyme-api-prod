@@ -7,6 +7,9 @@ import { authMiddleware } from "@/app/middleware/authMiddleware";
 // The POST request is for the start of a new interval of a puzzle
 // The PUT request is for the end of an interval of a puzzle
 
+// As these functions are quite brittle, i want to console.log the api calls which get captured in
+// the vercel logs. This is to help me debug the api calls.
+
 // -----------------------------------------------------------------------------------------------------------
 // app/user/[userid]/results/log/start.js
 // This route handles POST request to add intitaltime record for a given interval of a puzzle
@@ -24,6 +27,17 @@ async function handlerPOST(req, context) {
 
   // Deconstruct Body
   const { DateTimeStartOnDevice } = await req.json();
+
+  // Logging
+  try {
+    const body = await req.json();
+    console.log("POST /results/log/start");
+    console.log("Body:", body);
+    console.log("UID:", UID, "PID:", PID);
+    console.log("Headers:", req.headers);
+  } catch (error) {
+    console.error("Error logging POST /results/log/start", error);
+  }
 
   try {
     const ItemParams = {
