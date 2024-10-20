@@ -2,7 +2,7 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 
 // config object
 const config = {
-  region: "ap-southeast-2",
+  region: "us-east-1",
   credentials: {
     accessKeyId: process.env.AWS_KEY,
     secretAccessKey: process.env.AWS_SECRET,
