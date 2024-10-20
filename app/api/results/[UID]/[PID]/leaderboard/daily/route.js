@@ -152,13 +152,22 @@ async function handlerGET(req, context) {
       });
       return {
         ...userDetail,
+        // these are used in the app front-end
         TimeTaken: userResultDetail ? userResultDetail.TimeTakenInSeconds : "",
-        EncodedResult: userResultDetail ? userResultDetail.EncodedResult : "",
         HintsUsed: userResultDetail ? userResultDetail.HintsUsed : "",
+        EncodedResult: userResultDetail ? userResultDetail.EncodedResult : "",
+
+        // for sort only
+        SortTimeTaken: userResultDetail
+          ? parseInt(userResultDetail.TimeTakenInSeconds)
+          : 9999999999,
+        SortHintsUsed: userResultDetail
+          ? parseInt(userResultDetail.HintsUsed)
+          : 9999999999,
         SortCompletedFlag: userResultDetail ? 0 : 1,
       };
     })
-    .sortBy(["SortCompletedFlag", "HintsUsed", "TimeTaken", "UserFirstName"])
+    .sortBy(["SortCompletedFlag", "SortHintsUsed", "SortTimeTaken", "UserFirstName"])
     .value();
 
   // Step 6: Assign positions with tie handling
